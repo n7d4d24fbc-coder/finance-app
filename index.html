@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Мои Финансы</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #0f0f14);
+      --sec-bg: var(--tg-theme-secondary-bg-color, #1b1b24);
+      --text: var(--tg-theme-text-color, #ffffff);
+      --hint: var(--tg-theme-hint-color, #8e8e93);
+      --btn: var(--tg-theme-button-color, #3b82f6);
+      --btn-text: var(--tg-theme-button-text-color, #ffffff);
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background: var(--bg); color: var(--text); padding: 14px; padding-bottom: 40px; }
+    
+    .card { background: var(--sec-bg); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+    .total-label { font-size: 13px; color: var(--hint); margin-bottom: 4px; }
+    .total-val { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; }
+    
+    .accounts-row { display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 4px; scrollbar-width: none; }
+    .accounts-row::-webkit-scrollbar { display: none; }
+    .acc-badge { background: rgba(128,128,128,0.12); padding: 8px 12px; border-radius: 12px; min-width: 105px; flex-shrink: 0; }
+    .acc-badge-name { font-size: 12px; color: var(--hint); }
+    .acc-badge-val { font-size: 15px; font-weight: 700; margin-top: 2px; }
+
+    .stats-row { display: flex; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(128,128,128,0.15); }
+    .stat-box { flex: 1; }
+    .stat-label { font-size: 11px; color: var(--hint); }
+    .stat-val { font-size: 15px; font-weight: 700; margin-top: 2px; }
+    .c-exp { color: var(--danger); }
+    .c-inc { color: var(--success); }
+
+    .tabs { display: flex; background: rgba(128,128,128,0.12); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+    .tab { flex: 1; text-align: center; padding: 9px; border-radius: 9px; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; color: var(--hint); }
+    .tab.active { background: var(--btn); color: var(--btn-text); }
+
+    .input-wrap { margin-bottom: 14px; }
+    .field-label { font-size: 12px; color: var(--hint); margin-bottom: 6px; display: flex; justify-content: space-between; }
+    .amount-inp { width: 100%; background: rgba(128,128,128,0.1); border: 2px solid transparent; border-radius: 14px; padding: 12px 14px; font-size: 26px; font-weight: 700; color: var(--text); outline: none; transition: 0.2s; }
+    .amount-inp:focus { border-color: var(--btn); }
+    .text-inp { width: 100%; background: rgba(128,128,128,0.1); border: none; border-radius: 12px; padding: 12px 14px; font-size: 15px; color: var(--text); outline: none; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { padding: 8px 13px; border-radius: 11px; background: rgba(128,128,128,0.12); font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.15s; border: 1.5px solid transparent; display: flex; align-items: center; gap: 4px; }
+    .chip.selected { background: rgba(59, 130, 246, 0.2); border-color: var(--btn); color: var(--btn); font-weight: 600; }
+    .chip.smart-match { border-color: rgba(16, 185, 129, 0.5); }
+    .chip.add-btn { border: 1.5px dashed var(--hint); background: transparent; color: var(--hint); }
+
+    .submit-btn { width: 100%; background: var(--btn); color: var(--btn-text); border: none; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 6px; transition: 0.2s; }
+    .submit-btn:disabled { opacity: 0.5; }
+
+    .section-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+    .tx-item { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 1px solid rgba(128,128,128,0.12); }
+    .tx-item:last-child { border-bottom: none; }
+    .tx-cat { font-weight: 600; font-size: 14px; }
+    .tx-sub { font-size: 12px; color: var(--hint); margin-top: 2px; }
+    .tx-amt { font-weight: 700; font-size: 15px; white-space: nowrap; }
+
+    #status-bar { display: none; padding: 12px; border-radius: 12px; margin-bottom: 12px; font-size: 13px; text-align: center; }
+    .st-err { background: rgba(239,68,68,0.2); color: #fca5a5; }
+    .st-load { background: rgba(59,130,246,0.15); color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <div id="status-bar"></div>
+
+  <!-- Главный дашборд -->
+  <div class="card">
+    <div class="total-label">Общий баланс</div>
+    <div class="total-val" id="totalBalance">0 ₽</div>
+    
+    <div class="accounts-row" id="accountsList"></div>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-label">Расходы (месяц)</div>
+        <div class="stat-val c-exp" id="monthExpense">0 ₽</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Доходы (месяц)</div>
+        <div class="stat-val c-inc" id="monthIncome">0 ₽</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Форма добавления операции -->
+  <div class="card">
+    <div class="tabs">
+      <div class="tab active" id="tabExp" onclick="switchType('Расход')">Расход</div>
+      <div class="tab" id="tabInc" onclick="switchType('Доход')">Доход</div>
+    </div>
+
+    <div class="input-wrap">
+      <div class="field-label">
+        <span>Сумма</span>
+        <span id="smartHint" style="color: var(--success); display: none;">⭐ Подобрано по сумме</span>
+      </div>
+      <input type="number" id="amountInput" class="amount-inp" placeholder="0" inputmode="decimal" oninput="onAmountInput()">
+    </div>
+
+    <div class="input-wrap">
+      <div class="field-label">Счет</div>
+      <div class="chips" id="accountChips"></div>
+    </div>
+
+    <div class="input-wrap">
+      <div class="field-label">Категория</div>
+      <div class="chips" id="categoryChips"></div>
+    </div>
+
+    <div class="input-wrap">
+      <input type="text" id="commentInput" class="text-inp" placeholder="Комментарий (необязательно)">
+    </div>
+
+    <button class="submit-btn" id="saveBtn" onclick="submitTransaction()">Записать</button>
+  </div>
+
+  <!-- История последних операций -->
+  <div class="card">
+    <div class="section-title">Последние операции</div>
+    <div id="recentList">
+      <div style="color: var(--hint); font-size: 13px; text-align: center; padding: 12px;">Загрузка данных...</div>
+    </div>
+  </div>
+
+<script>
+  const API_URL = 'https://script.google.com/macros/s/AKfycbwgm-7-Bkd0DO3our9jKCeK-xwHLaEuSQmDxhbaqGbPSw04t58mZXrJYuLrGr6kpmAD/exec';
+  
+  const tg = window.Telegram.WebApp;
+  tg.expand();
+  tg.ready();
+
+  // Берем ID пользователя из Telegram
+  const userId = tg.initDataUnsafe?.user?.id || '';
+
+  let state = {
+    type: 'Расход',
+    account: 'Карта',
+    category: '',
+    balances: { 'Карта': 0, 'Наличные': 0, 'Копилка': 0 },
+    categories: { 'Расход': [], 'Доход': [] },
+    amountMap: {},
+    recent: []
+  };
+
+  function showStatus(msg, isError = false) {
+    const bar = document.getElementById('status-bar');
+    if (!msg) { bar.style.display = 'none'; return; }
+    bar.style.display = 'block';
+    bar.className = isError ? 'st-err' : 'st-load';
+    bar.innerText = msg;
+  }
+
+  function formatMoney(num) {
+    return Number(num || 0).toLocaleString('ru-RU') + ' ₽';
+  }
+
+  async function apiRequest(payload) {
+    payload.userId = userId;
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  }
+
+  async function loadDashboard() {
+    showStatus('Синхронизация с таблицей...');
+    try {
+      const json = await apiRequest({ action: 'getData' });
+      if (!json.ok) {
+        showStatus(json.error + (userId ? ` (Твой ID: ${userId})` : ' (Открой через Telegram)'), true);
+        return;
+      }
+      showStatus('');
+      applyServerData(json.data);
+    } catch (e) {
+      showStatus('Ошибка соединения с сервером: ' + e.message, true);
+    }
+  }
+
+  function applyServerData(data) {
+    state.balances = data.balances || {};
+    state.categories = data.categories || { 'Расход': [], 'Доход': [] };
+    state.amountMap = data.amountMap || {};
+    state.recent = data.recent || [];
+
+    document.getElementById('totalBalance').innerText = formatMoney(data.totalBalance);
+    document.getElementById('monthExpense').innerText = formatMoney(data.monthExpense);
+    document.getElementById('monthIncome').innerText = formatMoney(data.monthIncome);
+
+    // Отрисовка балансов счетов сверху
+    const accList = document.getElementById('accountsList');
+    accList.innerHTML = '';
+    const accNames = Object.keys(state.balances);
+    if (accNames.length > 0 && !accNames.includes(state.account)) {
+      state.account = accNames[0];
+    }
+    accNames.forEach(acc => {
+      accList.innerHTML += `
+        <div class="acc-badge">
+          <div class="acc-badge-name">${acc}</div>
+          <div class="acc-badge-val">${formatMoney(state.balances[acc])}</div>
+        </div>`;
+    });
+
+    renderAccountChips();
+    renderCategoryChips();
+    renderRecent();
+  }
+
+  function switchType(newType) {
+    state.type = newType;
+    document.getElementById('tabExp').classList.toggle('active', newType === 'Расход');
+    document.getElementById('tabInc').classList.toggle('active', newType === 'Доход');
+    state.category = '';
+    renderCategoryChips(true);
+  }
+
+  function renderAccountChips() {
+    const container = document.getElementById('accountChips');
+    container.innerHTML = '';
+    Object.keys(state.balances).forEach(acc => {
+      const active = state.account === acc ? 'selected' : '';
+      container.innerHTML += `<div class="chip ${active}" onclick="selectAccount('${acc}')">${acc}</div>`;
+    });
+  }
+
+  function selectAccount(acc) {
+    state.account = acc;
+    renderAccountChips();
+  }
+
+  // Умная сортировка категорий по введенной сумме
+  function onAmountInput() {
+    renderCategoryChips(true);
+  }
+
+  function renderCategoryChips(autoSelectBest = false) {
+    const container = document.getElementById('categoryChips');
+    const hintEl = document.getElementById('smartHint');
+    container.innerHTML = '';
+
+    const rawCats = [...(state.categories[state.type] || [])];
+    const amt = Number(document.getElementById('amountInput').value);
+    const key = state.type + '_' + amt;
+    const freqMap = (amt > 0 && state.amountMap[key]) ? state.amountMap[key] : null;
+
+    if (freqMap) {
+      hintEl.style.display = 'inline';
+      rawCats.sort((a, b) => (freqMap[b] || 0) - (freqMap[a] || 0));
+      if (autoSelectBest && rawCats.length > 0 && freqMap[rawCats[0]] > 0) {
+        state.category = rawCats[0];
+      }
+    } else {
+      hintEl.style.display = 'none';
+      if (!state.category && rawCats.length > 0) {
+        state.category = rawCats[0];
+      }
+    }
+
+    rawCats.forEach(cat => {
+      const isSelected = state.category === cat ? 'selected' : '';
+      const isSmart = (freqMap && freqMap[cat]) ? 'smart-match' : '';
+      const star = (freqMap && freqMap[cat]) ? '⭐ ' : '';
+      container.innerHTML += `<div class="chip ${isSelected} ${isSmart}" onclick="selectCategory('${cat}')">${star}${cat}</div>`;
+    });
+
+    container.innerHTML += `<div class="chip add-btn" onclick="promptNewCategory()">+ Новая</div>`;
+  }
+
+  function selectCategory(cat) {
+    state.category = cat;
+    renderCategoryChips(false);
+  }
+
+  async function promptNewCategory() {
+    const newCat = prompt(`Введи название новой категории (${state.type}):`);
+    if (!newCat || !newCat.trim()) return;
+    const cleanCat = newCat.trim();
+    
+    showStatus('Добавляем категорию...');
+    try {
+      const json = await apiRequest({ action: 'addCategory', type: state.type, category: cleanCat });
+      if (json.ok) {
+        state.category = cleanCat;
+        applyServerData(json.data);
+        showStatus('');
+      } else {
+        showStatus(json.error, true);
+      }
+    } catch (e) {
+      showStatus('Ошибка при сохранении категории', true);
+    }
+  }
+
+  async function submitTransaction() {
+    const amtInput = document.getElementById('amountInput');
+    const comInput = document.getElementById('commentInput');
+    const amount = Number(amtInput.value);
+
+    if (!amount || amount <= 0) {
+      alert('Введи сумму больше нуля');
+      return;
+    }
+    if (!state.category) {
+      alert('Выбери категорию');
+      return;
+    }
+
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.innerText = 'Сохраняем...';
+
+    try {
+      const json = await apiRequest({
+        action: 'addTransaction',
+        type: state.type,
+        amount: amount,
+        account: state.account,
+        category: state.category,
+        comment: comInput.value.trim()
+      });
+
+      if (json.ok) {
+        amtInput.value = '';
+        comInput.value = '';
+        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        applyServerData(json.data);
+      } else {
+        alert('Ошибка: ' + json.error);
+      }
+    } catch (e) {
+      alert('Ошибка сети: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = 'Записать';
+    }
+  }
+
+  function renderRecent() {
+    const list = document.getElementById('recentList');
+    if (!state.recent || state.recent.length === 0) {
+      list.innerHTML = '<div style="color: var(--hint); font-size: 13px; text-align: center; padding: 12px;">Операций пока нет</div>';
+      return;
+    }
+    list.innerHTML = '';
+    state.recent.forEach(item => {
+      const isExp = item.type === 'Расход';
+      const sign = isExp ? '-' : '+';
+      const colorClass = isExp ? 'c-exp' : 'c-inc';
+      const comm = item.comment ? ` • ${item.comment}` : '';
+      list.innerHTML += `
+        <div class="tx-item">
+          <div>
+            <div class="tx-cat">${item.category}</div>
+            <div class="tx-sub">${item.account} • ${item.date}${comm}</div>
+          </div>
+          <div class="tx-amt ${colorClass}">${sign}${formatMoney(item.amount)}</div>
+        </div>`;
+    });
+  }
+
+  loadDashboard();
+</script>
+</body>
+</html>
